@@ -7,7 +7,7 @@ const GITHUB_TOKEN = process.argv[2]
 export const PACKAGES_SCOPE = process.argv[3]
 export const REPO_NAME = process.argv[4]
 
-async function app() {
+export default async function app() {
   axios.defaults.headers.common['Authorization'] = `bearer ${GITHUB_TOKEN}`
 
   try {

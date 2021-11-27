@@ -1,7 +1,7 @@
 {
   "name": "github-registry-utils",
   "author": "RACZ Kerry",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "This is a util made for easily unpublishing github registry packages.",
   "main": "index.mjs",
   "license": "MIT",
