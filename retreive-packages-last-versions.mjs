@@ -1,10 +1,10 @@
 import axios from 'axios'
-import { PACKAGES_SCOPE, REPO_NAME } from './index.mjs'
+import { env } from './index.mjs'
 
 export async function retreivePackagesLastVersion() {
   try {
     const { data } = await axios.post('https://api.github.com/graphql', {
-      query: `query{repository(owner:"${PACKAGES_SCOPE}",name:"${REPO_NAME}"){packages(first:50){nodes{name,id,versions(first:1){nodes{id,version}}}}}}`
+      query: `query{repository(owner:"${env.PACKAGES_SCOPE}",name:"${env.REPO_NAME}"){packages(first:50){nodes{name,id,versions(first:1){nodes{id,version}}}}}}`
     })
 
     return data.data.repository.packages.nodes
