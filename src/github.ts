@@ -59,6 +59,13 @@ export class Github {
     )
   }
 
+  async unpublishVersion(version: string) {
+    const packages = await this.retreivePackagesLastVersion()
+    const versionToUnpublish = packages.filter(packages => packages.version === version)
+
+    await Promise.all(versionToUnpublish.map(version => this.deletePackageVersion(version.id)))
+  }
+
   async unpublishPackages() {
     try {
       const lastVersions = await this.retreivePackagesLastVersion()
