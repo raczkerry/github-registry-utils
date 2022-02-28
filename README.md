@@ -1,9 +1,28 @@
-# Whats is is
+<h1 align="center">Github registry utils</h1>
 
-This is a util made for easily unpublishing github registry packages.
+`github-registry-utils` is a tool made for unpublishing github registry package versions easily.
 
-# How to use it
+## Table of Contents
 
-Call it with your github token, the packages scope and the repository name.
+- [Installation](#Installation)
+- [How to use](#How-to-use)
 
-Ex: - node index.mjs GITHUB_TOKEN PACKAGES_SCOPE REPO_NAME - index(GITHUB_TOKEN, PACKAGES_SCOPE, REPO_NAME)
+## Installation
+
+```sh
+npm i github-registry-utils
+```
+
+## How to use:
+
+```js
+const github = new Github({
+  GITHUB_TOKEN: 'ghp_Qh...6K',
+  PACKAGES_SCOPE: 'magic-system',
+  REPO_NAME: 'bouger',
+})
+
+github.unpublishPackages()
+```
+
+You'll be prompt to choose wich version you want to unpublish
