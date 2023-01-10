@@ -1,102 +1,80 @@
-import { graphql } from '@octokit/graphql'
-import inquirer from 'inquirer'
-
+import { Octokit } from 'octokit'
+import semver from 'semver'
 export class Github {
-  private graphql = graphql
-  private PACKAGES_SCOPE
+  private octokit: Octokit
+  private ORGANISATION
   private REPO_NAME
 
-  constructor({ GITHUB_TOKEN, PACKAGES_SCOPE, REPO_NAME }: { GITHUB_TOKEN: string; PACKAGES_SCOPE: string; REPO_NAME: string }) {
-    this.PACKAGES_SCOPE = PACKAGES_SCOPE
+  constructor({ GITHUB_TOKEN, ORGANISATION, REPO_NAME }: { GITHUB_TOKEN: string; ORGANISATION: string; REPO_NAME: string }) {
+    this.ORGANISATION = ORGANISATION
     this.REPO_NAME = REPO_NAME
 
-    this.graphql = graphql.defaults({
-      headers: {
-        authorization: `bearer ${GITHUB_TOKEN}`,
-      },
+    this.octokit = new Octokit({ auth: GITHUB_TOKEN })
+  }
+
+  async getPackagesForVersion(
+    version: string
+  ): Promise<{ package_id: number; package_name: string; package_type: string; version_name: string; version_id: number }[]> {
+    const packages = await this.octokit.rest.packages.listPackagesForOrganization({ org: this.ORGANISATION, package_type: 'npm' })
+    const repo_packages = packages.data.filter(({ repository }) => repository?.name === this.REPO_NAME)
+
+    const packages_with_version_id = await Promise.all(
+      repo_packages.map(p =>
+        (async () => {
+          const { data: package_versions } = await this.octokit.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
+            org: this.ORGANISATION,
+            package_name: p.name,
+            package_type: 'npm',
+            page: 1,
+            per_page: 1,
+          })
+
+          return {
+            package_id: p.id,
+            package_name: p.name,
+            package_type: p.package_type,
+            version_name: package_versions[0].name,
+            version_id: package_versions[0].id,
+          }
+        })()
+      )
+    )
+
+    return packages_with_version_id.filter(({ version_name }) => version_name === version)
+  }
+
+  async deletePackageVersion(package_name: string, package_version_id: number) {
+    await this.octokit.rest.packages.deletePackageVersionForOrg({
+      org: this.ORGANISATION,
+      package_type: 'npm',
+      package_name,
+      package_version_id,
     })
   }
 
-  async retreivePackagesLastVersion(): Promise<{ name: string; version: string; id: string }[]> {
-    const { repository } = await this.graphql(
-      `query {
-        repository(owner:"${this.PACKAGES_SCOPE}",name:"${this.REPO_NAME}") {
-          packages(first:50) {
-            nodes {
-              name,id,versions(first:1) {
-                nodes {
-                  id,version
-                }
-              }
-            }
-          }
-        }
-      }`
-    )
+  async unpublishPackagesVersion(version: string) {
+    const packages = await this.getPackagesForVersion(version)
 
-    return repository.packages.nodes
-      .filter((pkg: any) => !pkg.name.includes('deleted'))
-      .map((pkg: any) => ({
-        name: pkg.name,
-        ...pkg.versions.nodes[0],
-      }))
+    await Promise.all(packages.map(p => this.deletePackageVersion(p.package_name, p.version_id)))
   }
 
-  async deletePackageVersion(versionId: string) {
-    await this.graphql(
-      `mutation {
-        deletePackageVersion(input: {
-          packageVersionId:\"${versionId}\"
-        }) {
-          success
-        }
-      }`,
-      {
-        headers: {
-          accept: 'application/vnd.github.package-deletes-preview+json',
-        },
-      }
-    )
-  }
+  async getNewVersionNumber() {
+    const packages = await this.octokit.rest.packages.listPackagesForOrganization({ org: this.ORGANISATION, package_type: 'npm' })
+    const repo_packages = packages.data.filter(({ repository }) => repository?.name === this.REPO_NAME)
+    const first_package = repo_packages[0]
 
-  async unpublishVersion(version: string) {
-    const packages = await this.retreivePackagesLastVersion()
-    const versionToUnpublish = packages.filter(packages => packages.version === version)
+    const { data } = await this.octokit.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
+      org: this.ORGANISATION,
+      package_name: first_package.name,
+      package_type: 'npm',
+      page: 1,
+      per_page: 1,
+    })
 
-    await Promise.all(versionToUnpublish.map(version => this.deletePackageVersion(version.id)))
-  }
+    const current_version = data[0].name
+    const next_version_number = semver.inc(current_version, 'patch')
 
-  async unpublishPackages() {
-    try {
-      const lastVersions = await this.retreivePackagesLastVersion()
-
-      const answers = await inquirer.prompt([
-        {
-          type: 'checkbox',
-          message: 'Select the packages you want to unpublish',
-          name: 'versionIds',
-          choices: () => lastVersions.map(({ name, version, id }) => ({ name: `${name}@${version}`, value: id })),
-          validate: () => true,
-        },
-        {
-          type: 'confirm',
-          message: 'Are you sure?',
-          name: 'confirm',
-          choices: ['No', 'Yes'],
-          validate: () => true,
-        },
-      ])
-
-      if (answers.confirm) {
-        await Promise.all(answers.versionIds.map((versionId: string) => this.deletePackageVersion(versionId)))
-      } else {
-        process.exit(1)
-      }
-    } catch (error: any) {
-      if (error.response?.data) console.log('ERROR => ', error.response.data)
-      else console.log(error)
-
-      process.exit(1)
-    }
+    console.log(next_version_number)
+    return next_version_number
   }
 }
