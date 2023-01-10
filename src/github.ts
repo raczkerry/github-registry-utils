@@ -74,7 +74,6 @@ export class Github {
     const current_version = data[0].name
     const next_version_number = semver.inc(current_version, 'patch')
 
-    console.log(next_version_number)
     return next_version_number
   }
 }
